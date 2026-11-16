@@ -1,0 +1,45 @@
+query_id,query_type,query
+Q01,keyword,paternity leave
+Q02,keyword,multi-factor authentication
+Q03,keyword,forklift certification
+Q04,keyword,per diem meal allowance
+Q05,keyword,API rate limits
+Q06,keyword,Q3 2026 revenue and operating margin
+Q07,keyword,purchase order approval thresholds
+Q08,keyword,customer churn rate
+Q09,keyword,laptop warranty end date
+Q10,keyword,99.9 percent availability service credits
+Q11,keyword,CO2 emissions
+Q12,paraphrase,how much time off do new dads get when a baby is born
+Q13,paraphrase,"I got a weird email asking for my login details, what should I do"
+Q14,paraphrase,getting my money back after paying for accommodation on a work trip
+Q15,paraphrase,why did customers lose access to package tracking
+Q16,paraphrase,what are we doing to reduce our impact on the planet
+Q17,paraphrase,which delivery vehicles are battery powered
+Q18,paraphrase,how long do we hold on to client information before throwing it away
+Q19,paraphrase,what will happen during my first days at the company
+Q20,paraphrase,how is it decided whether I get a salary raise
+Q21,paraphrase,can I do my job from my house some days
+Q22,paraphrase,which customers might leave us and why
+Q23,paraphrase,how much money did we bring in between July and September
+Q24,paraphrase,how can an online shop plug its systems into ours
+Q25,paraphrase,what protective clothing must warehouse workers wear
+Q26,paraphrase,"an annoyed client wants money back, how should I respond"
+Q27,paraphrase,can you transport medicine that has to stay cold
+Q28,paraphrase,why are parcels arriving late
+Q29,paraphrase,what new features is the tech team building next year
+Q30,paraphrase,how many people are we going to recruit
+Q31,paraphrase,under what conditions can we end the agreement with our hosting provider
+Q32,ambiguous,security
+Q33,ambiguous,training
+Q34,ambiguous,contract
+Q35,ambiguous,delivery performance
+Q36,ambiguous,customer data
+Q37,ambiguous,refunds
+Q38,ambiguous,safety
+Q39,ambiguous,returns
+Q40,no_answer,stock option vesting schedule
+Q41,no_answer,where is the company christmas party
+Q42,no_answer,how do I file a patent for an invention
+Q43,no_answer,quantum computing research projects
+Q44,no_answer,visa sponsorship for foreign workers

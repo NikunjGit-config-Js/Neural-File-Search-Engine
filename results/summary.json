@@ -1,0 +1,35 @@
+{
+  "environment": {
+    "python": "3.12.10",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "AMD64 Family 23 Model 104 Stepping 1, AuthenticAMD",
+    "cpu_count": 8,
+    "torch_threads": 4,
+    "torch": "2.15.0+cpu",
+    "faiss": "1.16.0",
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "device": "cpu"
+  },
+  "corpus": {
+    "files": 32,
+    "chunks": 155,
+    "chunk_size_words": 120,
+    "chunk_overlap_words": 30,
+    "queries": 44,
+    "answerable_queries": 39,
+    "relevance_labels": 57
+  },
+  "checks": {
+    "embedding_dim": 384,
+    "faiss_index_dim": 384,
+    "faiss_index_size_equals_chunks": true,
+    "embeddings_unit_norm": true,
+    "faiss_top5_equals_numpy_bruteforce_fraction": 1.0,
+    "cached_equals_first_run": true,
+    "unsupported_file_reported": true,
+    "fresh_embedding_shape": [
+      155,
+      384
+    ]
+  }
+}

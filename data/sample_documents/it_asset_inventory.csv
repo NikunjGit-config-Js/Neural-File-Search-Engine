@@ -1,0 +1,11 @@
+asset_tag,device_type,model,department,purchase_date,warranty_end,status
+IT-2041,Laptop,Business laptop 14-inch,Finance,2022-03-14,2025-03-13,"In use, warranty expired"
+IT-2042,Laptop,Business laptop 14-inch,HR,2022-03-14,2025-03-13,Scheduled for replacement
+IT-2310,Laptop,Business laptop 15-inch,Sales,2024-06-02,2027-06-01,In use
+IT-2311,Laptop,Developer workstation laptop,Technology,2025-01-20,2028-01-19,In use
+IT-3105,Handheld scanner,Rugged barcode scanner,Operations,2023-09-11,2026-09-10,"In use, warranty expired"
+IT-3106,Handheld scanner,Rugged barcode scanner,Operations,2023-09-11,2026-09-10,Under repair
+IT-4020,Label printer,Thermal label printer,Operations,2024-02-05,2027-02-04,In use
+IT-5001,Mobile phone,Company smartphone,Drivers,2025-04-15,2027-04-14,In use
+IT-5002,Mobile phone,Company smartphone,Drivers,2021-11-03,2023-11-02,"Lost, remotely wiped"
+IT-6010,Docking station,USB-C dock,Head Office,2024-06-02,2026-06-01,In use

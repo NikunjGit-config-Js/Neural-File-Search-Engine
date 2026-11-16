@@ -1,0 +1,13 @@
+ticket_id,category,customer_issue,resolution
+T-1001,Delivery,Parcel marked as delivered but customer did not receive it,"Driver GPS checked, parcel found with a neighbour"
+T-1002,Billing,Charged twice for the same shipment,Duplicate charge refunded
+T-1003,Damaged goods,Glass vase arrived broken,Claim approved and refund of item value issued
+T-1004,Account,Cannot log in to merchant portal after password reset,MFA device re-registered
+T-1005,Delivery,Delivery window missed for the third time this month,"Escalated to depot manager, priority routing applied"
+T-1006,API,Shipment creation returns error 429,"Merchant advised to implement backoff, rate limit explained"
+T-1007,Returns,Customer wants to return an order but has no printer for the label,QR code return label sent by email
+T-1008,Billing,Unclear fuel surcharge on invoice,"Surcharge calculation explained, credit note issued"
+T-1009,Delivery,Address change requested after dispatch,Parcel redirected to a pickup point
+T-1010,Tracking,Tracking page not loading,Linked to tracking portal outage on 14 August
+T-1011,Damaged goods,Box crushed and contents wet,"Photos collected, claim forwarded to insurer"
+T-1012,Account,Request to delete my personal data,Forwarded to the Data Protection Officer

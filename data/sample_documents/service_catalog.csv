@@ -1,0 +1,9 @@
+service,description,price_eur,delivery_time
+Standard Parcel,Nationwide delivery for parcels up to 30 kg,6.50,1-2 working days
+Same-Day Metro,"Same-day delivery in Amsterdam, Rotterdam and Utrecht for orders placed before noon",12.90,Same evening
+Next-Day Express,Guaranteed next-day delivery before 12:00,9.80,Next working day
+Freight Pallet,"Pallet transport up to 1,000 kg with tail-lift truck",85.00,2-3 working days
+Returns Management,Prepaid return labels and processing of returned goods,4.20,2-4 working days
+Warehousing,"Storage and pick-and-pack fulfilment, price per pallet per month",28.00,Not applicable
+Cold Chain,Temperature-controlled delivery for food and pharmaceuticals,18.50,Next working day
+International Economy,Delivery to EU countries through our partner network,14.00,3-6 working days

@@ -1,0 +1,9 @@
+site,city,site_type,employees,opened,facilities
+Head Office,Amsterdam,Office,210,2012,"Meeting rooms, showers, bike storage, wellbeing room"
+Amsterdam West Depot,Amsterdam,Depot,145,2015,"Sorting hall, 30 loading docks, EV chargers"
+Rotterdam Hub,Rotterdam,Sorting hub,320,2010,"Automated sorter, 60 loading docks, customs office"
+Rotterdam Cross-Dock,Rotterdam,Cross-dock,85,2026,"24 loading docks, opened July 2026"
+Utrecht Depot,Utrecht,Depot,120,2017,"Electric van pilot site, 20 charging points"
+Eindhoven Depot,Eindhoven,Depot,95,2019,"Cold chain room, 18 loading docks"
+Groningen Depot,Groningen,Depot,60,2021,12 loading docks
+Customer Service Centre,Utrecht,Office,70,2018,"Contact centre, training room"

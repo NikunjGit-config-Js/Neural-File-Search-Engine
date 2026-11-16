@@ -1,0 +1,21 @@
+# Core pipeline
+sentence-transformers==6.3.0
+torch==2.15.0            # CPU is enough; see README for the CPU-only install command
+faiss-cpu==1.16.0
+scikit-learn==1.9.1
+nltk==3.10.4
+numpy==2.5.5
+pandas==3.1.1
+
+# Document formats
+pypdf==7.1.0
+python-docx==1.2.0
+python-pptx==1.0.2
+reportlab==5.1.0         # only used by prepare_data.py to create the sample PDFs
+
+# App, notebook and tests
+streamlit==1.67.0
+matplotlib==3.11.2
+jupyter
+nbconvert==7.17.2
+pytest==9.2.0

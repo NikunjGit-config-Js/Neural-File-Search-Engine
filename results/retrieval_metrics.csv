@@ -1,0 +1,16 @@
+query_group,model,n_queries,precision_at_5,recall_at_5,mrr,max_possible_precision_at_5,mean_top1_score,mean_results_returned
+all answerable,TF-IDF + cosine,39,0.2154,0.735,0.6598,0.2923,0.2954,4.1
+all answerable,MiniLM + FAISS,39,0.2718,0.9466,0.9111,0.2923,0.5129,5.0
+all answerable,MiniLM + NumPy cosine (diagnostic),39,0.2718,0.9466,0.9111,0.2923,0.5129,5.0
+keyword,TF-IDF + cosine,11,0.2364,0.9545,0.9545,0.2545,0.4177,4.0
+keyword,MiniLM + FAISS,11,0.2545,1.0,1.0,0.2545,0.6315,5.0
+keyword,MiniLM + NumPy cosine (diagnostic),11,0.2545,1.0,1.0,0.2545,0.6315,5.0
+paraphrase,TF-IDF + cosine,20,0.14,0.5917,0.42,0.24,0.2166,4.3
+paraphrase,MiniLM + FAISS,20,0.22,0.9333,0.8517,0.24,0.4574,5.0
+paraphrase,MiniLM + NumPy cosine (diagnostic),20,0.22,0.9333,0.8517,0.24,0.4574,5.0
+ambiguous,TF-IDF + cosine,8,0.375,0.7917,0.8542,0.475,0.3241,3.75
+ambiguous,MiniLM + FAISS,8,0.425,0.9062,0.9375,0.475,0.4886,5.0
+ambiguous,MiniLM + NumPy cosine (diagnostic),8,0.425,0.9062,0.9375,0.475,0.4886,5.0
+no_answer,TF-IDF + cosine,5,,,,,0.1313,1.8
+no_answer,MiniLM + FAISS,5,,,,,0.2689,5.0
+no_answer,MiniLM + NumPy cosine (diagnostic),5,,,,,0.2689,5.0

@@ -1,0 +1,11 @@
+vehicle_id,vehicle_type,fuel_type,depot,year,odometer_km,next_service_due,notes
+V-101,Panel van 3.5t,Diesel,Amsterdam,2021,148200,2026-12-03,
+V-102,Panel van 3.5t,Diesel,Amsterdam,2022,112950,2027-01-15,
+V-103,Panel van 3.5t,Electric,Utrecht,2026,31400,2027-03-10,"Pilot vehicle, 220 km range"
+V-104,Panel van 3.5t,Electric,Utrecht,2026,29870,2027-03-10,"Pilot vehicle, 220 km range"
+V-105,Cargo bike,Electric,Amsterdam,2025,8100,2026-11-30,City centre last-mile deliveries
+V-106,Box truck 7.5t,Diesel,Rotterdam,2020,231400,2026-11-20,Tail lift
+V-107,Box truck 7.5t,HVO biofuel,Rotterdam,2023,96300,2027-02-02,
+V-108,Refrigerated van,Diesel,Eindhoven,2022,104700,2026-12-18,Cold chain deliveries
+V-109,Tractor unit,Diesel,Rotterdam,2021,402100,2026-12-01,Linehaul between hubs
+V-110,Panel van 3.5t,Electric,Rotterdam,2026,12050,2027-05-22,

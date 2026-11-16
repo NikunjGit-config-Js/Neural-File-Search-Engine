@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Generated caches (embeddings, FAISS indexes) - rebuilt automatically
+cache/
+
+# Downloaded model weights live in the Hugging Face cache (~/.cache/huggingface), never in the repo
+models/
+*.safetensors
+*.bin
+
+# Secrets and local settings
+.env
+.streamlit/secrets.toml
+
+# OS / editor / logs
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log

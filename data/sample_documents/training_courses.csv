@@ -1,0 +1,10 @@
+course_code,title,description,duration_hours,mandatory_for
+SEC-101,Cybersecurity Awareness,Recognise phishing and protect your accounts,0.75,All staff
+FLT-200,Forklift Operator Certification,Practical and theory training for counterbalance forklifts and reach trucks,16,Warehouse operatives
+FA-110,First Aid at Work,Emergency first aid and use of defibrillators,6,Shift leaders
+GDPR-120,Data Protection Essentials,Handling personal data and subject access requests,1,All office staff
+DRV-300,Defensive Driving,Safe and fuel-efficient driving for van drivers,4,Drivers
+EV-310,Electric Van Familiarisation,"Charging procedures, range management and regenerative braking",2,Drivers
+LDR-400,First-Time Manager Programme,"Coaching, feedback and performance conversations",12,New managers
+CS-150,Customer Service Excellence,De-escalation and complaint handling,3,Support agents
+MH-130,Manual Handling,Safe lifting techniques for warehouse work,1.5,Warehouse operatives

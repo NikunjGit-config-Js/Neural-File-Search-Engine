@@ -151,8 +151,9 @@ def extract_sections(path):
 def split_into_chunks(text, chunk_size=120, overlap=30):
     """Split text into windows of `chunk_size` words that overlap by `overlap` words.
 
-    120 words is roughly 160 word-piece tokens, safely below MiniLM's 256-token
-    limit (longer input would be silently truncated by the model).
+    120 words is roughly 160 word-piece tokens, below MiniLM's 256-token limit
+    (longer input would be silently truncated by the model). A test in
+    tests/test_documents.py checks that every sample chunk fits.
     """
     if chunk_size <= 0 or not 0 <= overlap < chunk_size:
         raise ValueError("need chunk_size > 0 and 0 <= overlap < chunk_size")

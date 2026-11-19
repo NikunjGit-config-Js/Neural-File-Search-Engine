@@ -1,11 +1,14 @@
 import shutil
+import subprocess
+import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 from documents import DocumentError
-from search import (MODEL_NAME, SearchEngine, embed_texts, file_cache_key, index_folder, numpy_cosine_search,
-                    preprocess_for_tfidf, rank_documents)
+from search import (SearchEngine, TfidfSearch, chunk_cache_key, embed_texts, embedding_cache_key, index_folder,
+                    load_chunks, model_fingerprint, numpy_cosine_search, preprocess_for_tfidf, rank_documents)
 from tests.conftest import make_small_corpus
 
 
@@ -118,16 +121,37 @@ def test_cache_invalidates_when_a_file_changes(model, tmp_path):
     assert any("Rotterdam" in c["text"] for c in second["chunks"])
 
 
-def test_cache_key_depends_on_settings_and_name(small_corpus, tmp_path):
+def test_cache_keys_depend_on_settings_name_and_model(small_corpus, model, tmp_path):
+    # chunk keys never involve the model; embedding keys add the model's fingerprint
     path = small_corpus / "fleet.csv"
-    base = file_cache_key(path, MODEL_NAME, 120, 30)
-    assert base == file_cache_key(path, MODEL_NAME, 120, 30)
-    assert base != file_cache_key(path, MODEL_NAME, 80, 30)
-    assert base != file_cache_key(path, MODEL_NAME, 120, 10)
-    assert base != file_cache_key(path, "another-model", 120, 30)
+    base = chunk_cache_key(path, 120, 30)
+    assert base == chunk_cache_key(path, 120, 30)
+    assert base != chunk_cache_key(path, 80, 30)
+    assert base != chunk_cache_key(path, 120, 10)
     copy = tmp_path / "fleet_copy.csv"
     shutil.copy(path, copy)
-    assert base != file_cache_key(copy, MODEL_NAME, 120, 30)  # same bytes, different name
+    assert base != chunk_cache_key(copy, 120, 30)  # same bytes, different name
+    model_id = model_fingerprint(model)
+    assert model_id == model_fingerprint(model)
+    assert embedding_cache_key(base, model_id) != embedding_cache_key(base, "another-model")
+
+
+def test_tfidf_is_built_from_chunks_without_the_model(small_corpus, tmp_path):
+    loaded = load_chunks(small_corpus, cache_dir=tmp_path)  # step 1 only: MiniLM is not involved
+    hits = TfidfSearch(loaded["chunks"]).search_chunks("paternity leave", n=len(loaded["chunks"]))
+    assert loaded["chunks"][hits[0][0]]["file_name"] == "leave_policy.pdf"
+
+
+def test_cli_tfidf_mode_does_not_load_minilm(small_corpus):
+    # a fresh process, so modules imported by other tests cannot hide a dependency on PyTorch
+    code = ("import runpy, sys\n"
+            "sys.argv = ['search.py', 'paternity leave', '--mode', 'tfidf', '--no-cache', '--folder', sys.argv[1]]\n"
+            "runpy.run_path('search.py', run_name='__main__')\n"
+            "assert 'torch' not in sys.modules and 'sentence_transformers' not in sys.modules\n")
+    out = subprocess.run([sys.executable, "-c", code, str(small_corpus)], capture_output=True, text=True,
+                         cwd=Path(__file__).resolve().parents[1])
+    assert out.returncode == 0, out.stderr
+    assert "MiniLM not loaded" in out.stdout and "1. leave_policy.pdf" in out.stdout
 
 
 def test_bad_files_are_reported_not_fatal(model, tmp_path):

@@ -110,3 +110,15 @@ def test_all_sample_documents_load():
         assert chunks, path.name
         types[path.suffix] = types.get(path.suffix, 0) + 1
     assert types == {".pdf": 8, ".docx": 8, ".pptx": 8, ".csv": 8}
+
+
+def test_sample_chunks_fit_the_model_token_limit(model):
+    # Chunks are cut by words, but MiniLM silently truncates input longer than
+    # max_seq_length word pieces (special tokens included). No sample chunk may be cut off.
+    from pathlib import Path
+    from search import CHUNK_OVERLAP, CHUNK_SIZE
+    folder = Path(__file__).resolve().parents[1] / "data" / "sample_documents"
+    texts = [c["text"] for path in list_files(folder) for c in load_document(path, CHUNK_SIZE, CHUNK_OVERLAP)]
+    lengths = [len(ids) for ids in model.tokenizer(texts)["input_ids"]]
+    print(f"{len(texts)} chunks, longest {max(lengths)} of {model.max_seq_length} tokens")
+    assert max(lengths) <= model.max_seq_length

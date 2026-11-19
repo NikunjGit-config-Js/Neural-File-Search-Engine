@@ -55,7 +55,11 @@ def recall_at_k(ranked, relevant, k=TOP_K):
 
 
 def reciprocal_rank(ranked, relevant):
-    """1 / rank of the first relevant file (0 if none is retrieved). Averaged -> MRR."""
+    """1 / rank of the first relevant file (0 if none is retrieved).
+
+    `ranked` holds only the top 5 files, so the average is MRR@5: a first relevant
+    file below rank 5 counts as 0. The CSV columns keep the short name "mrr".
+    """
     for position, file_name in enumerate(ranked, start=1):
         if file_name in relevant:
             return 1 / position
@@ -228,8 +232,10 @@ def measure_latency(engine, model, queries, repeats=20):
                             [t for v in query_vectors for t in time_calls(lambda: numpy_cosine_search(embeddings, v, n), 100)],
                             f"{n} vectors"))
 
-    # What a system WITHOUT the embedding cache would do: re-embed every chunk for
-    # every query, then brute-force cosine. This is the scenario the cache removes.
+    # Reference point only: a design that stores no document embeddings would
+    # re-embed every chunk for every query. Real vector search never does this.
+    # What the disk cache itself saves is indexing time (index_build_no_cache vs
+    # index_load_from_cache above).
     chunk_texts = [c["text"] for c in engine.chunks]
 
     def naive_query(q):

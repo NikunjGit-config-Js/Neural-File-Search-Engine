@@ -45,7 +45,7 @@ flowchart LR
 | Model A: TF-IDF | NLTK `word_tokenize`, stopword removal, WordNet lemmatisation → `TfidfVectorizer(sublinear_tf=True)` → cosine | `search.py` |
 | Model B: MiniLM + FAISS | `all-MiniLM-L6-v2` on the original text → unit vectors → `faiss.IndexFlatIP` (exact inner product = cosine) | `search.py` |
 | Ranking | each file is scored by its best chunk, so one file cannot fill several top-5 slots | `search.py` |
-| Caching | per-file chunks + embeddings and the FAISS index on disk; query embeddings in an in-memory LRU | `search.py` |
+| Caching | on disk: per-file chunks (no model involved), per-file embeddings keyed by the model's weights, and the FAISS index; query embeddings in an in-memory LRU | `search.py` |
 
 **Why NLTK only for TF-IDF?** Stopword removal and lemmatisation help keyword matching, but they
 remove meaning ("*not* eligible", "*before* noon"). MiniLM is trained on natural sentences, so it
@@ -81,10 +81,10 @@ repository. Later runs load them from disk without contacting the Hub.
 ```bash
 python prepare_data.py                     # (re)create the 32 sample documents, queries and labels
 python search.py "how do I claim a hotel on a work trip" --mode minilm --top-k 5
-python search.py "per diem" --mode tfidf
+python search.py "per diem" --mode tfidf    # keyword baseline only: MiniLM/PyTorch are not loaded
 streamlit run app.py                       # web app at http://localhost:8501
 python evaluate.py                         # benchmark, writes results/ (~3-4 min)
-pytest                                     # 41 tests
+pytest                                     # 44 tests
 ```
 
 The **Streamlit app** has three options. You can search the sample documents or upload your own
@@ -109,12 +109,13 @@ delivery company (see [`data/README.md`](data/README.md)). There are 44 queries:
 
 **Protocol.** Both models search the same chunks with the same queries and labels. Each model's
 chunk scores are collapsed to one score per file (its best chunk), and the top 5 files are
-evaluated. Metrics are averaged over the 39 queries that have at least one relevant file. The
-95% confidence interval is a paired bootstrap over queries (10,000 resamples).
+evaluated. MRR@5 is the mean of 1 / rank of the first relevant file among those 5, counting 0
+when none of them is relevant. Metrics are averaged over the 39 queries that have at least one
+relevant file. The 95% confidence interval is a paired bootstrap over queries (10,000 resamples).
 
 ### Retrieval quality (`results/retrieval_metrics.csv`, `results/model_comparison.csv`)
 
-| Model | Precision@5 | Recall@5 | MRR |
+| Model | Precision@5 | Recall@5 | MRR@5 |
 |---|---|---|---|
 | TF-IDF + cosine | 0.215 | 0.735 | 0.660 |
 | MiniLM + FAISS | **0.272** | **0.947** | **0.911** |
@@ -124,12 +125,12 @@ evaluated. Metrics are averaged over the 39 queries that have at least one relev
 |---|---|---|---|
 | Precision@5 | +5.6 | +2.1 to +9.7 | +26.2% |
 | Recall@5 | +21.2 | +9.2 to +34.2 | +28.8% |
-| MRR | +25.1 | +11.8 to +38.6 | +38.1% |
+| MRR@5 | +25.1 | +11.8 to +38.6 | +38.1% |
 
 Relative improvement = (MiniLM − TF-IDF) / TF-IDF × 100. MiniLM ranked the first relevant file
 higher on 15 queries, TF-IDF on 2, and 22 were tied.
 
-| Query type | P@5 TF-IDF → MiniLM | MRR TF-IDF → MiniLM |
+| Query type | P@5 TF-IDF → MiniLM | MRR@5 TF-IDF → MiniLM |
 |---|---|---|
 | keyword (11) | 0.236 → 0.255 | 0.955 → 1.000 |
 | paraphrase (20) | 0.140 → 0.220 | 0.420 → 0.852 |
@@ -139,7 +140,7 @@ higher on 15 queries, TF-IDF on 2, and 22 were tied.
 
 **How to read this**
 * Precision@5 values look small because most queries have only 1–2 relevant files. Even a
-  perfect system scores at most 0.292, so MRR and Recall@5 are more informative here.
+  perfect system scores at most 0.292, so MRR@5 and Recall@5 are more informative here.
 * The gain comes almost entirely from **paraphrased** questions. On exact-keyword queries TF-IDF
   is nearly as good. A query set made mostly of keyword searches would show a much smaller
   improvement.
@@ -163,26 +164,38 @@ Values are medians over repeated runs. Warm runs came after warm-up calls.
 | **Query, TF-IDF** (end to end) | **2.7 ms** |
 | **Query, MiniLM + FAISS** (embed query + search + rank files) | **22.0 ms** (p95 29.8 ms) |
 | Query, MiniLM + FAISS, repeated query (query embedding cache hit) | 0.18 ms |
-| Query **without an embedding cache** (re-embed all 155 chunks each time + NumPy cosine) | 3.97 s |
+| Reference only: re-embed all 155 chunks for every query + NumPy cosine (no stored embeddings) | 3.97 s |
 | Search step only, FAISS `IndexFlatIP`, 155 vectors | 0.045 ms |
 | Search step only, NumPy brute-force cosine, 155 vectors | 0.116 ms |
 | Synthetic 100k random vectors, top-5: FAISS flat vs NumPy | 26.3 ms vs 12.4 ms |
 
 ![Latency](results/figures/latency.png)
 
-* **The document embedding cache is what makes search interactive.** It cuts a query from about
-  4 s (re-embedding everything) to about 22 ms (embedding only the query). The saving comes from
-  caching, not from FAISS: the search step itself takes well under 1 ms with either method.
+* **Most of a 22 ms MiniLM query is embedding the query.** A repeated query, whose embedding
+  comes from the query cache, takes 0.18 ms, and the search step alone takes well under 1 ms with
+  either FAISS or NumPy.
+* **The disk cache saves indexing time, not query time.** Storing document embeddings is how any
+  vector search works, so the 3.97 s row (re-embedding every chunk for every query) is a reference
+  point, not a real alternative. The cache's own effect: re-indexing 32 unchanged files takes
+  67 ms instead of 4.49 s, and only an edited file is re-embedded (next section).
 * Exact FAISS (one query at a time) was *slower* than NumPy at 10k and 100k vectors on this machine.
-  FAISS pays off with approximate indexes and much larger collections, which this project does not
-  need yet.
+  A likely reason, not measured here: for fewer than 20 queries per call, FAISS's exact search does
+  not use BLAS and splits its work across queries, so a single query runs on one thread, while
+  NumPy's matrix-vector product uses multithreaded BLAS. FAISS pays off with batched queries,
+  approximate indexes and much larger collections, which this project does not need yet.
 * Cold start is dominated by importing PyTorch on Windows. The app pays it once and keeps the model
   in memory.
 
 ### Caching and invalidation (`results/cache_effectiveness.csv`)
 
-Each file's cache key is the SHA-256 of its **bytes + file name + model name + chunk size + overlap +
-pipeline version**. The FAISS index is keyed by the combination of all file keys.
+The cache has two levels, so the TF-IDF baseline never depends on the embedding model. A file's
+**chunks** are keyed by the SHA-256 of its **bytes + file name + chunk size + overlap + pipeline
+version**. Its **embeddings** are keyed by that chunk key + a **fingerprint of the loaded model**
+(SHA-256 of its weights and `max_seq_length`, computed locally without contacting the Hugging Face
+Hub). The FAISS index is keyed by the combination of all embedding keys.
+
+*The table below was measured before the cache was split into these two levels. The split gives
+the same file counts in every step; the timings were not re-measured.*
 
 | Step | Files from cache | Files processed | Time |
 |---|---|---|---|
@@ -192,9 +205,11 @@ pipeline version**. The FAISS index is keyed by the combination of all file keys
 | 4. chunk size 120 → 80 | 0 | 32 | 5.42 s |
 | 5. original settings again | 32 | 0 | 0.57 s |
 
-\*The first read of a new temporary folder includes OS file-system warm-up. Repeated warm loads take
-about 67 ms (latency table). Cached embeddings are bit-identical to freshly computed ones, and
-cached vs uncached search gives identical rankings (tested).
+\*Step 2 is a single run made right after the cache folder was first written; the extra time was
+not investigated. Repeated warm loads take about 67 ms (median of 10 runs, latency table).
+Embeddings loaded from the cache are bit-identical to the ones computed in step 1
+(`results/summary.json`), and a test checks that cached and uncached engines return the same
+rankings.
 
 ## Project structure
 
@@ -221,12 +236,15 @@ neural-file-search/
   differently from the documents. That is the case where embeddings should help, so the overall
   improvement depends on the query mix. Confidence intervals are wide, especially per query type.
 * Binary labels from one annotator, with no measure of inter-annotator agreement.
-* MiniLM has no "nothing found" threshold: it always returns *k* files. On this set the top-1
-  scores of unanswerable queries (0.24–0.31) overlap with the lowest top-1 scores of answerable
-  queries (from 0.31), so a single cut-off would not separate them cleanly.
+* MiniLM has no "nothing found" threshold: it always returns *k* files. On this set the highest
+  top-1 score of an unanswerable query (0.310) is only just above the lowest top-1 score of an
+  answerable one (0.309), so the best single cut-off would misclassify just one of the 44 queries.
+  No threshold is used anyway: it would be chosen by looking at the evaluation queries, and it
+  would rest on only 5 unanswerable ones. A threshold needs its own validation queries.
 * English only. No OCR for scanned PDFs. CSVs are indexed row by row, so questions that need
   aggregation ("total revenue in Q3") are not answered by retrieval alone.
-* Chunk size and overlap were chosen once from the model's token limit and were not tuned.
+* Chunk size and overlap were chosen once from the model's token limit and were not tuned. A test
+  checks that every sample chunk fits within MiniLM's 256-token input limit, so none is truncated.
 
 ## Possible improvements
 

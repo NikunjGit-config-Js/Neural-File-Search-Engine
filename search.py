@@ -6,9 +6,11 @@ Pipeline:
     query -> score every chunk -> keep the best chunk per file -> ranked files
 
 Two different caches are used:
-  * Document cache (on disk, in ./cache): chunks + embeddings for each file and
-    the FAISS index for the whole folder. A file is only re-processed when its
-    content, name, the chunk settings, the model or PIPELINE_VERSION change.
+  * Document cache (on disk, in ./cache), in two independent levels:
+      - the chunks of each file, keyed by its content, name, the chunk settings
+        and PIPELINE_VERSION. No model is involved, so TF-IDF never depends on MiniLM.
+      - the embeddings of each file's chunks, keyed by the chunk key and a
+        fingerprint of the loaded model's weights, plus the FAISS index.
   * Query cache (in memory): embeddings of recent query strings, so repeating a
     query skips the MiniLM forward pass.
 
@@ -160,42 +162,64 @@ class SemanticSearch:
 
 
 # ---------------------------------------------------------------------------
-# Indexing a folder, with an on-disk cache
+# Indexing a folder, with an on-disk cache, in two independent steps:
+#   1. files -> chunks (no model). TF-IDF is built from these chunks.
+#   2. chunks -> MiniLM embeddings + FAISS index, cached per model.
+# Both models therefore search exactly the same chunks.
 # ---------------------------------------------------------------------------
 
-def file_cache_key(path, model_name, chunk_size, overlap):
-    """Changes whenever the file bytes, file name or any processing setting changes."""
+def chunk_cache_key(path, chunk_size, overlap):
+    """Changes whenever the file bytes, file name, chunk settings or PIPELINE_VERSION change."""
     digest = hashlib.sha256()
     digest.update(Path(path).read_bytes())
-    digest.update(f"|{Path(path).name}|{model_name}|{chunk_size}|{overlap}|v{PIPELINE_VERSION}".encode())
+    digest.update(f"|{Path(path).name}|{chunk_size}|{overlap}|v{PIPELINE_VERSION}".encode())
     return digest.hexdigest()[:32]
 
 
-def index_folder(folder, model, cache_dir=CACHE_DIR, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP,
-                 use_cache=True, model_name=MODEL_NAME):
-    """Extract, chunk and embed every supported file in `folder`.
+def model_fingerprint(model):
+    """Identify the model that computes the embeddings: a hash of its weights plus its input limit.
 
-    Returns a dict with: chunks, embeddings, index, errors, stats.
+    It is computed from the loaded model, so no network access is needed, and embeddings
+    cached for one model (or for older weights) are never reused for another. The weight
+    hash is stored on the model object, so it is computed once per loaded model.
     """
-    start = time.perf_counter()
+    weights_hash = getattr(model, "_weights_sha256", None)
+    if weights_hash is None:
+        digest = hashlib.sha256()
+        for name, tensor in model.state_dict().items():
+            digest.update(name.encode())
+            digest.update(np.ascontiguousarray(tensor.detach().cpu().numpy()))
+        weights_hash = model._weights_sha256 = digest.hexdigest()[:32]
+    return f"{weights_hash}|max_seq_length={model.max_seq_length}"
+
+
+def embedding_cache_key(chunk_key, model_id):
+    """Changes whenever a file's chunks or the embedding model change."""
+    return hashlib.sha256(f"{chunk_key}|{model_id}".encode()).hexdigest()[:32]
+
+
+def load_chunks(folder, cache_dir=CACHE_DIR, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP, use_cache=True):
+    """Step 1, no model needed: extract and chunk every supported file in `folder`.
+
+    Returns a dict with: chunks (all files), files (one (chunk_key, chunks) pair per
+    readable file), errors, stats.
+    """
     files_dir = Path(cache_dir) / "files"
     if use_cache:
         files_dir.mkdir(parents=True, exist_ok=True)
 
-    all_chunks, all_vectors, errors, keys = [], [], [], []
-    stats = {"files_seen": 0, "files_from_cache": 0, "files_processed": 0, "files_failed": 0}
+    files, errors = [], []
+    stats = {"files_seen": 0, "files_failed": 0}
     for path in list_files(folder):
         if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
             errors.append(f"{path.name}: skipped, unsupported file type '{path.suffix}'")
             continue
         stats["files_seen"] += 1
-        key = file_cache_key(path, model_name, chunk_size, overlap)
-        chunk_file, vector_file = files_dir / f"{key}.json", files_dir / f"{key}.npy"
+        key = chunk_cache_key(path, chunk_size, overlap)
+        chunk_file = files_dir / f"{key}.json"
 
-        if use_cache and chunk_file.exists() and vector_file.exists():
+        if use_cache and chunk_file.exists():
             chunks = json.loads(chunk_file.read_text(encoding="utf-8"))
-            vectors = np.load(vector_file)
-            stats["files_from_cache"] += 1
         else:
             try:
                 chunks = load_document(path, chunk_size, overlap)
@@ -203,17 +227,43 @@ def index_folder(folder, model, cache_dir=CACHE_DIR, chunk_size=CHUNK_SIZE, over
                 errors.append(str(error))
                 stats["files_failed"] += 1
                 continue
+            if use_cache:
+                chunk_file.write_text(json.dumps(chunks), encoding="utf-8")
+        files.append((key, chunks))
+
+    all_chunks = [chunk for _, file_chunks in files for chunk in file_chunks]
+    if not all_chunks:
+        raise DocumentError("No searchable text found in the selected files. " + " ".join(errors))
+    return {"chunks": all_chunks, "files": files, "errors": errors, "stats": stats}
+
+
+def embed_chunks(files, model, cache_dir=CACHE_DIR, use_cache=True):
+    """Step 2: embed each file's chunks with `model` and build the FAISS index.
+
+    `files` is the list of (chunk_key, chunks) pairs from load_chunks.
+    Returns a dict with: embeddings, index, stats.
+    """
+    files_dir = Path(cache_dir) / "files"
+    if use_cache:
+        files_dir.mkdir(parents=True, exist_ok=True)
+
+    model_id = model_fingerprint(model)
+    all_vectors, keys = [], []
+    stats = {"files_from_cache": 0, "files_processed": 0}
+    for chunk_key, chunks in files:
+        key = embedding_cache_key(chunk_key, model_id)
+        vector_file = files_dir / f"{key}.npy"
+
+        if use_cache and vector_file.exists():
+            vectors = np.load(vector_file)
+            stats["files_from_cache"] += 1
+        else:
             vectors = embed_texts(model, [c["text"] for c in chunks])
             stats["files_processed"] += 1
             if use_cache:
-                chunk_file.write_text(json.dumps(chunks), encoding="utf-8")
                 np.save(vector_file, vectors)
-        all_chunks.extend(chunks)
         all_vectors.append(vectors)
         keys.append(key)
-
-    if not all_chunks:
-        raise DocumentError("No searchable text found in the selected files. " + " ".join(errors))
     embeddings = np.vstack(all_vectors).astype("float32")
 
     # Cache the FAISS index for this exact set of files. For an exact flat index
@@ -233,10 +283,22 @@ def index_folder(folder, model, cache_dir=CACHE_DIR, chunk_size=CHUNK_SIZE, over
     else:
         index = build_faiss_index(embeddings)
         stats["index_from_cache"] = False
+    return {"embeddings": embeddings, "index": index, "stats": stats}
 
-    stats["chunks"] = len(all_chunks)
-    stats["seconds"] = time.perf_counter() - start
-    return {"chunks": all_chunks, "embeddings": embeddings, "index": index, "errors": errors, "stats": stats}
+
+def index_folder(folder, model, cache_dir=CACHE_DIR, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP,
+                 use_cache=True):
+    """Steps 1 and 2 together: extract, chunk and embed every supported file in `folder`.
+
+    Returns a dict with: chunks, embeddings, index, errors, stats.
+    """
+    start = time.perf_counter()
+    loaded = load_chunks(folder, cache_dir, chunk_size, overlap, use_cache)
+    embedded = embed_chunks(loaded["files"], model, cache_dir, use_cache)
+    stats = {**loaded["stats"], **embedded["stats"], "chunks": len(loaded["chunks"]),
+             "seconds": time.perf_counter() - start}
+    return {"chunks": loaded["chunks"], "embeddings": embedded["embeddings"], "index": embedded["index"],
+            "errors": loaded["errors"], "stats": stats}
 
 
 # ---------------------------------------------------------------------------
@@ -263,12 +325,17 @@ class SearchEngine:
     def __init__(self, folder=DOCS_DIR, model=None, cache_dir=CACHE_DIR, chunk_size=CHUNK_SIZE,
                  overlap=CHUNK_OVERLAP, use_cache=True):
         self.model = model if model is not None else load_model()
-        indexed = index_folder(folder, self.model, cache_dir, chunk_size, overlap, use_cache)
-        self.chunks = indexed["chunks"]
-        self.errors = indexed["errors"]
-        self.stats = indexed["stats"]
-        self.semantic = SemanticSearch(self.model, indexed["embeddings"], indexed["index"])
+        start = time.perf_counter()
+        # Step 1 needs no model: the TF-IDF baseline is built from the chunks alone.
+        loaded = load_chunks(folder, cache_dir, chunk_size, overlap, use_cache)
+        self.chunks = loaded["chunks"]
+        self.errors = loaded["errors"]
         self.tfidf = TfidfSearch(self.chunks)
+        # Step 2: MiniLM embeds the same chunks.
+        embedded = embed_chunks(loaded["files"], self.model, cache_dir, use_cache)
+        self.semantic = SemanticSearch(self.model, embedded["embeddings"], embedded["index"])
+        self.stats = {**loaded["stats"], **embedded["stats"], "chunks": len(self.chunks),
+                      "seconds": time.perf_counter() - start}
 
     def search_chunks(self, query, mode="minilm", n=None, use_query_cache=True):
         # Score every chunk (exact search). For much larger corpora you would
@@ -299,15 +366,31 @@ def main():
     parser.add_argument("--no-cache", action="store_true", help="ignore and do not write the disk cache")
     args = parser.parse_args()
 
-    engine = SearchEngine(args.folder, use_cache=not args.no_cache)
-    s = engine.stats
-    print(f"Indexed {s['chunks']} chunks from {s['files_seen']} files in {s['seconds']:.2f}s "
-          f"({s['files_from_cache']} from cache, {s['files_processed']} processed, {s['files_failed']} failed)")
-    for message in engine.errors:
+    if args.mode == "tfidf":
+        # The keyword baseline needs only the chunks, so MiniLM and PyTorch are never loaded.
+        start = time.perf_counter()
+        loaded = load_chunks(args.folder, use_cache=not args.no_cache)
+        chunks, errors, s = loaded["chunks"], loaded["errors"], loaded["stats"]
+        tfidf = TfidfSearch(chunks)
+        print(f"Indexed {len(chunks)} chunks from {s['files_seen']} files in {time.perf_counter() - start:.2f}s "
+              f"({s['files_failed']} failed; MiniLM not loaded)")
+
+        def search(query):
+            query = query.strip()
+            return rank_documents(tfidf.search_chunks(query, len(chunks)), chunks, args.top_k) if query else []
+    else:
+        engine = SearchEngine(args.folder, use_cache=not args.no_cache)
+        s, errors = engine.stats, engine.errors
+        print(f"Indexed {s['chunks']} chunks from {s['files_seen']} files in {s['seconds']:.2f}s "
+              f"({s['files_from_cache']} from cache, {s['files_processed']} processed, {s['files_failed']} failed)")
+
+        def search(query):
+            return engine.search(query, args.mode, args.top_k)
+    for message in errors:
         print("  warning:", message)
 
     start = time.perf_counter()
-    results = engine.search(args.query, args.mode, args.top_k)
+    results = search(args.query)
     elapsed_ms = (time.perf_counter() - start) * 1000
     print(f"\n{SEARCH_MODES[args.mode]} | query: {args.query!r} | {elapsed_ms:.1f} ms\n")
     if not results:
